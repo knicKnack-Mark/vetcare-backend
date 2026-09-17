@@ -1,5 +1,6 @@
 const Owner = require('../models/Owner');
-const Pet = require('../models/Pet'); // assumes Pet model exists with `owner` ref
+const Pet = require('../models/Pet'); // 
+const validator = require('validator');
 
 // GET /api/owners
 const getOwners = async (req, res) => {
