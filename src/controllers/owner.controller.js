@@ -1,16 +1,71 @@
 const Owner = require('../models/Owner');
-const Pet = require('../models/Pet'); // 
+const Pet = require('../models/Pet');
 const validator = require('validator');
+const sanitizeHtml = require('sanitize-html');
 
+const sanitizeText = (str) => (typeof str === 'string' ? sanitizeHtml(str, { allowedTags: [], allowedAttributes: {} }).trim() : str);
+
+const sanitizeOwnerBody = (body) => {
+  const clean = { ...body };
+  ['firstName', 'middleName', 'lastName', 'suffix', 'notes'].forEach((f) => {
+    if (clean[f]) clean[f] = sanitizeText(clean[f]);
+  });
+  if (clean.address) {
+    clean.address = { ...clean.address };
+    ['houseStreet', 'barangay', 'municipality', 'province', 'zipCode'].forEach((f) => {
+      if (clean.address[f]) clean.address[f] = sanitizeText(clean.address[f]);
+    });
+  }
+  return clean;
+};
+
+const mobileRegex = /^09\d{9}$/;
+
+const validateOwnerFields = (body, { partial = false } = {}) => {
+  const errors = [];
+  const { firstName, lastName, mobileNumber, email, address } = body;
+
+  if (!partial) {
+    if (!firstName) errors.push({ field: 'firstName', message: 'First name is required' });
+    if (!lastName) errors.push({ field: 'lastName', message: 'Last name is required' });
+    if (!mobileNumber) errors.push({ field: 'mobileNumber', message: 'Mobile number is required' });
+    if (!address?.municipality) errors.push({ field: 'address.municipality', message: 'Municipality is required' });
+    if (!address?.province) errors.push({ field: 'address.province', message: 'Province is required' });
+  }
+
+  if (mobileNumber && !mobileRegex.test(mobileNumber)) {
+    errors.push({ field: 'mobileNumber', message: 'Mobile number must be a valid PH number (e.g. 09171234567)' });
+  }
+
+  if (email && !validator.isEmail(email)) {
+    errors.push({ field: 'email', message: 'Invalid email format' });
+  }
+
+  return errors;
+};
+
+// GET /api/owners
 // GET /api/owners
 const getOwners = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, status, municipality, province, sortBy = 'lastName', sortOrder = 'asc' } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      status,
+      municipality,
+      province,
+      preferredContactMethod,
+      sortBy = 'lastName',
+      sortOrder = 'asc',
+    } = req.query;
 
     const query = {};
     if (status) query.status = status;
     if (municipality) query['address.municipality'] = municipality;
     if (province) query['address.province'] = province;
+    if (preferredContactMethod) query.preferredContactMethod = preferredContactMethod;
+
     if (search) {
       query.$or = [
         { firstName: { $regex: search, $options: 'i' } },
@@ -29,17 +84,29 @@ const getOwners = async (req, res) => {
       Owner.countDocuments(query),
     ]);
 
+    const ownersWithPetCount = await Promise.all(
+      owners.map(async (o) => ({
+        ...o.toJSON(),
+        petCount: await Pet.countDocuments({ owner: o._id }),
+      }))
+    );
+
     res.json({
       success: true,
       data: {
-        owners,
-        pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / limit) },
+        owners: ownersWithPetCount,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message, errors: [] });
   }
-};
+};  
 
 // GET /api/owners/:id
 const getOwnerById = async (req, res) => {
@@ -71,15 +138,12 @@ const getOwnerById = async (req, res) => {
 // POST /api/owners
 const createOwner = async (req, res) => {
   try {
-    const { firstName, lastName, mobileNumber, email } = req.body;
-
-    if (!firstName || !lastName || !mobileNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: [{ field: !firstName ? 'firstName' : !lastName ? 'lastName' : 'mobileNumber', message: 'This field is required' }],
-      });
+    const errors = validateOwnerFields(req.body);
+    if (errors.length > 0) {
+      return res.status(400).json({ success: false, message: 'Validation failed', errors });
     }
+
+    const { firstName, lastName, mobileNumber, email } = req.body;
 
     const duplicate = await Owner.findOne({
       $or: [
@@ -107,6 +171,11 @@ const createOwner = async (req, res) => {
 // PUT /api/owners/:id
 const updateOwner = async (req, res) => {
   try {
+    const errors = validateOwnerFields(req.body);
+    if (errors.length > 0) {
+      return res.status(400).json({ success: false, message: 'Validation failed', errors });
+    }
+
     const owner = await Owner.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!owner) return res.status(404).json({ success: false, message: 'Owner not found', errors: [] });
     res.json({ success: true, data: { owner } });
@@ -118,6 +187,11 @@ const updateOwner = async (req, res) => {
 // PATCH /api/owners/:id
 const patchOwner = async (req, res) => {
   try {
+    const errors = validateOwnerFields(req.body, { partial: true });
+    if (errors.length > 0) {
+      return res.status(400).json({ success: false, message: 'Validation failed', errors });
+    }
+
     const owner = await Owner.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true, runValidators: true });
     if (!owner) return res.status(404).json({ success: false, message: 'Owner not found', errors: [] });
     res.json({ success: true, data: { owner } });
@@ -127,11 +201,29 @@ const patchOwner = async (req, res) => {
 };
 
 // DELETE /api/owners/:id (soft delete)
+// DELETE /api/owners/:id (soft delete)
 const deactivateOwner = async (req, res) => {
   try {
-    const owner = await Owner.findByIdAndUpdate(req.params.id, { status: 'inactive' }, { new: true });
+    const owner = await Owner.findById(req.params.id);
     if (!owner) return res.status(404).json({ success: false, message: 'Owner not found', errors: [] });
-    res.json({ success: true, message: 'Owner deactivated', data: { owner } });
+
+    if (owner.status === 'inactive') {
+      return res.status(400).json({ success: false, message: 'Owner is already inactive', errors: [] });
+    }
+
+    const petCount = await Pet.countDocuments({ owner: owner._id });
+
+    // Not blocking — just informing. Historical data is preserved either way via soft delete.
+    owner.status = 'inactive';
+    await owner.save();
+
+    res.json({
+      success: true,
+      message: petCount > 0
+        ? `Owner deactivated. ${petCount} associated pet record(s) will be preserved.`
+        : 'Owner deactivated.',
+      data: { owner, petCount },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message, errors: [] });
   }
@@ -142,7 +234,11 @@ const updateOwnerStatus = async (req, res) => {
   try {
     const { status } = req.body;
     if (!['active', 'inactive'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Validation failed', errors: [{ field: 'status', message: 'Invalid status value' }] });
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: [{ field: 'status', message: 'Invalid status value' }],
+      });
     }
     const owner = await Owner.findByIdAndUpdate(req.params.id, { status }, { new: true });
     if (!owner) return res.status(404).json({ success: false, message: 'Owner not found', errors: [] });
@@ -215,6 +311,14 @@ const searchOwners = async (req, res) => {
 };
 
 module.exports = {
-  getOwners, getOwnerById, createOwner, updateOwner, patchOwner,
-  deactivateOwner, updateOwnerStatus, getOwnerPets, getOwnerSummary, searchOwners,
+  getOwners,
+  getOwnerById,
+  createOwner,
+  updateOwner,
+  patchOwner,
+  deactivateOwner,
+  updateOwnerStatus,
+  getOwnerPets,
+  getOwnerSummary,
+  searchOwners,
 };
