@@ -19,6 +19,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.6.0",
     "mongoose": "^9.10.0",
+    "sanitize-html": "^2.17.7",
     "validator": "^13.15.35"
   },
   "devDependencies": {
