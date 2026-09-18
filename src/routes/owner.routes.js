@@ -5,6 +5,7 @@ const {
   deactivateOwner, updateOwnerStatus, getOwnerPets, getOwnerSummary, searchOwners,
 } = require('../controllers/owner.controller');
 const { authenticateUser, requireRole } = require('../middleware/auth');
+const { getOwnerAppointments } = require('../controllers/appointment.controller');
 
 router.use(authenticateUser);
 
@@ -19,5 +20,5 @@ router.put('/:id', requireRole('ADMIN', 'RECEPTIONIST'), updateOwner);
 router.patch('/:id', requireRole('ADMIN', 'RECEPTIONIST'), patchOwner);
 router.patch('/:id/status', requireRole('ADMIN', 'RECEPTIONIST'), updateOwnerStatus);
 router.delete('/:id', requireRole('ADMIN'), deactivateOwner);
-
+router.get('/:id/appointments', getOwnerAppointments);
 module.exports = router;
