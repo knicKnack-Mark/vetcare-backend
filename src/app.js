@@ -8,7 +8,7 @@ const appointmentRoutes = require('./routes/appointment.routes');
 const vaccinationRoutes = require('./routes/vaccination.routes');
 const userRoutes = require('./routes/user.routes');
 const dewormingRoutes = require('./routes/deworming.routes');
-
+const mongoose = require('mongoose');
 const app = express();
 
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
@@ -23,4 +23,5 @@ app.use('/api/users', userRoutes);
 app.use('/api/dewormings', dewormingRoutes);
 app.get('/', (req, res) => res.json({ message: 'VetCare API running' }));
 app.use('/api/inventory', require('./routes/inventory.routes'));
+app.use('/api/billing', require('./routes/billing.routes'));
 module.exports = app;
