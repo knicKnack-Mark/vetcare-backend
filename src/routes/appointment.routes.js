@@ -6,7 +6,7 @@ const {
   cancelAppointment, rescheduleAppointment, completeAppointment, markNoShow,
 } = require('../controllers/appointment.controller');
 const { authenticateUser, requireRole } = require('../middleware/auth');
-
+const { getAppointmentBilling } = require('../controllers/billing.controller');
 router.use(authenticateUser);
 
 // Fixed routes BEFORE /:id
@@ -25,5 +25,5 @@ router.post('/:id/cancel', requireRole('ADMIN', 'RECEPTIONIST', 'VETERINARIAN'),
 router.post('/:id/reschedule', requireRole('ADMIN', 'RECEPTIONIST', 'VETERINARIAN'), rescheduleAppointment);
 router.post('/:id/complete', requireRole('ADMIN', 'RECEPTIONIST', 'VETERINARIAN'), completeAppointment);
 router.post('/:id/no-show', requireRole('ADMIN', 'RECEPTIONIST', 'VETERINARIAN'), markNoShow);
-
+router.get('/:id/billing', getAppointmentBilling);
 module.exports = router;

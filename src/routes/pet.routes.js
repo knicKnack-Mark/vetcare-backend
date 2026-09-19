@@ -5,6 +5,8 @@ const { getPetAppointments } = require('../controllers/appointment.controller');
 const { authenticateUser, requireRole } = require('../middleware/auth');
 const { getPetVaccinations } = require('../controllers/vaccination.controller');
 const { getPetDewormings } = require('../controllers/deworming.controller');
+const { getPetBilling } = require('../controllers/billing.controller');
+
 
 
 router.use(authenticateUser);
@@ -18,5 +20,7 @@ router.patch('/:id/restore', requireRole('ADMIN', 'RECEPTIONIST'), restorePet);
 router.get('/:id/appointments', getPetAppointments);
 router.get('/:id/vaccinations', getPetVaccinations);
 router.get('/:id/dewormings', getPetDewormings);
+router.get('/:id/billing', getPetBilling);
+
 
 module.exports = router;

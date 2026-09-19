@@ -8,6 +8,8 @@ const { authenticateUser, requireRole } = require('../middleware/auth');
 const { getOwnerAppointments } = require('../controllers/appointment.controller');
 const { getOwnerVaccinations } = require('../controllers/vaccination.controller');
 const { getOwnerDewormings } = require('../controllers/deworming.controller');
+const { getOwnerBilling } = require('../controllers/billing.controller');
+
 
 router.use(authenticateUser);
 
@@ -25,4 +27,8 @@ router.delete('/:id', requireRole('ADMIN'), deactivateOwner);
 router.get('/:id/appointments', getOwnerAppointments);
 router.get('/:id/vaccinations', getOwnerVaccinations);  
 router.get('/:id/dewormings', getOwnerDewormings);
+router.get('/:id/billing', getOwnerBilling);
+
+
+
 module.exports = router;
