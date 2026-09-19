@@ -7,7 +7,7 @@ const {
 const { authenticateUser, requireRole } = require('../middleware/auth');
 const { getOwnerAppointments } = require('../controllers/appointment.controller');
 const { getOwnerVaccinations } = require('../controllers/vaccination.controller');
-
+const { getOwnerDewormings } = require('../controllers/deworming.controller');
 
 router.use(authenticateUser);
 
@@ -23,5 +23,6 @@ router.patch('/:id', requireRole('ADMIN', 'RECEPTIONIST'), patchOwner);
 router.patch('/:id/status', requireRole('ADMIN', 'RECEPTIONIST'), updateOwnerStatus);
 router.delete('/:id', requireRole('ADMIN'), deactivateOwner);
 router.get('/:id/appointments', getOwnerAppointments);
-router.get('/:id/vaccinations', getOwnerVaccinations);
+router.get('/:id/vaccinations', getOwnerVaccinations);  
+router.get('/:id/dewormings', getOwnerDewormings);
 module.exports = router;
