@@ -3,6 +3,8 @@ const Vaccination = require('../models/Vaccination');
 const Pet = require('../models/Pet');
 const Owner = require('../models/Owner');
 const Appointment = require('../models/Appointment');
+const InventoryItem = require('../models/InventoryItem');
+const { stockOutInternal } = require('../services/inventory.service');
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 const ACTIVE_STATUSES = ['administered'];
@@ -214,12 +216,33 @@ const createVaccination = async (req, res) => {
 
     const vaccination = await Vaccination.create({ ...req.body, owner, status: 'administered' });
 
-    // If linked to an appointment, complete it (only when explicitly linked, never auto-complete unrelated appointments)
     if (req.body.appointment) {
       await Appointment.findByIdAndUpdate(req.body.appointment, {
         status: 'completed',
         completion: { completedAt: new Date(), completedBy: req.user._id },
       });
+    }
+
+    // Optional inventory deduction — only if inventoryItem is explicitly supplied
+    if (req.body.inventoryItem) {
+      try {
+        await stockOutInternal({
+          inventoryItemId: req.body.inventoryItem,
+          quantity: 1,
+          transactionType: 'usage',
+          referenceType: 'vaccination',
+          referenceId: vaccination._id,
+          reason: `Vaccination administered to pet (${vaccination._id})`,
+          performedBy: req.user._id,
+        });
+      } catch (invErr) {
+        // Vaccination record already succeeded — surface the inventory issue without failing the whole request
+        return res.status(201).json({
+          success: true,
+          data: { vaccination },
+          message: `Vaccination recorded, but inventory deduction failed: ${invErr.message}`,
+        });
+      }
     }
 
     res.status(201).json({ success: true, data: { vaccination } });

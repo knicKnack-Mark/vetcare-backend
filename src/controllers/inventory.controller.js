@@ -247,42 +247,14 @@ const stockIn = async (req, res) => {
 const stockOut = async (req, res) => {
   try {
     const { quantity, transactionType = 'usage', reason, referenceType, referenceId, notes } = req.body;
-
     if (!quantity || quantity <= 0) return res.status(400).json({ success: false, message: 'Validation failed', errors: [{ field: 'quantity', message: 'Quantity must be positive' }] });
 
+    const transaction = await stockOutInternal({ inventoryItemId: req.params.id, quantity, transactionType, referenceType, referenceId, reason, notes, performedBy: req.user._id });
     const item = await InventoryItem.findById(req.params.id);
-    if (!item) return res.status(404).json({ success: false, message: 'Inventory item not found', errors: [] });
-
-    if (quantity > item.quantityRemaining) {
-      return res.status(400).json({ success: false, message: 'Insufficient inventory', errors: [{ field: 'quantity', message: `Only ${item.quantityRemaining} remaining` }] });
-    }
-
-    // FEFO batch selection — never consume expired stock
-    let remainingToDeduct = quantity;
-    let usedBatch = null;
-    while (remainingToDeduct > 0) {
-      const batch = await selectFefoBatch(item._id, remainingToDeduct);
-      if (!batch) break; // no batch info tracked (legacy items) — deduct from item total only
-      const deductFromBatch = Math.min(batch.quantityRemaining, remainingToDeduct);
-      batch.quantityRemaining -= deductFromBatch;
-      batch.status = batch.quantityRemaining <= 0 ? 'depleted' : 'available';
-      await batch.save();
-      usedBatch = batch;
-      remainingToDeduct -= deductFromBatch;
-    }
-
-    const previousQuantity = item.quantityRemaining;
-    const newQuantity = previousQuantity - quantity;
-    item.quantityRemaining = newQuantity;
-    await item.save();
-
-    const transaction = await createTransaction({
-      inventoryItem: item._id, batch: usedBatch?._id, transactionType, quantity: -quantity, previousQuantity, newQuantity,
-      unitCost: item.unitCost, referenceType, referenceId, reason, notes, performedBy: req.user._id,
-    });
-
     res.json({ success: true, data: { item, transaction } });
   } catch (error) {
+    if (error.message.includes('not found')) return res.status(404).json({ success: false, message: error.message, errors: [] });
+    if (error.message.includes('Insufficient')) return res.status(400).json({ success: false, message: error.message, errors: [] });
     res.status(500).json({ success: false, message: error.message, errors: [] });
   }
 };
