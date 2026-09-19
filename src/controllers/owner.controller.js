@@ -138,6 +138,7 @@ const getOwnerById = async (req, res) => {
 // POST /api/owners
 const createOwner = async (req, res) => {
   try {
+    req.body = sanitizeOwnerBody(req.body);
     const errors = validateOwnerFields(req.body);
     if (errors.length > 0) {
       return res.status(400).json({ success: false, message: 'Validation failed', errors });
@@ -171,6 +172,7 @@ const createOwner = async (req, res) => {
 // PUT /api/owners/:id
 const updateOwner = async (req, res) => {
   try {
+    req.body = sanitizeOwnerBody(req.body);
     const errors = validateOwnerFields(req.body);
     if (errors.length > 0) {
       return res.status(400).json({ success: false, message: 'Validation failed', errors });
@@ -187,6 +189,7 @@ const updateOwner = async (req, res) => {
 // PATCH /api/owners/:id
 const patchOwner = async (req, res) => {
   try {
+    req.body = sanitizeOwnerBody(req.body);
     const errors = validateOwnerFields(req.body, { partial: true });
     if (errors.length > 0) {
       return res.status(400).json({ success: false, message: 'Validation failed', errors });
